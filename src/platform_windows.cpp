@@ -1,4 +1,4 @@
-#ifdef _WIN32
+ #ifdef _WIN32
 
 #define WIN32_MEAN_AND_LEAN
 #include "windows.h"
@@ -66,4 +66,4 @@ static LRESULT WindowEventHandler(HWND window, UINT message, WPARAM wParam, LPAR
     return DefWindowProc(window, message, wParam, lParam);
 }
 
-#endif // _WIN32
+ #endif // _WIN32

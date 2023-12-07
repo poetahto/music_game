@@ -1,7 +1,7 @@
 #ifndef MG_PLATFORM_HPP
 #define MG_PLATFORM_HPP
 
-#include "Types.hpp"
+#include "types.hpp"
 
 namespace Platform {
     void init();

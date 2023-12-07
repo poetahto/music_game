@@ -1,6 +1,7 @@
 # IDE Files
 .vscode
 .vs
+.idea
 
 # Build Artifacts
 build
