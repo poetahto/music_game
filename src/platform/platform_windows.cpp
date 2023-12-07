@@ -17,6 +17,7 @@ static bool s_wantsToQuit {false};
 static HINSTANCE s_instance {};
 static HWND s_window {};
 static WNDCLASS s_windowClass {};
+bool s_resizeDirty {};
 
 static ID3D11Device* s_device {};
 static ID3D11DeviceContext* s_deviceContext {};
@@ -24,6 +25,8 @@ static IDXGISwapChain* s_swapChain {};
 static ID3D11RenderTargetView* s_renderTarget {};
 
 static LRESULT WindowEventHandler(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
+static void CreateRenderTarget();
+static void CleanupRenderTarget();
 
 void Platform::init() {
     s_instance = GetModuleHandle(nullptr);
@@ -81,10 +84,7 @@ void Platform::init() {
         }
 
         // Create the render target
-        ID3D11Texture2D* pBackBuffer;
-        s_swapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
-        s_device->CreateRenderTargetView(pBackBuffer, nullptr, &s_renderTarget);
-        pBackBuffer->Release();
+        CreateRenderTarget();
     }
 
     ShowWindow(s_window, SW_SHOWDEFAULT);
@@ -125,7 +125,7 @@ void Platform::free() {
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
 
-    if (s_renderTarget) { s_renderTarget->Release(); s_renderTarget = nullptr; }
+    CleanupRenderTarget();
     if (s_swapChain) { s_swapChain->Release(); s_swapChain = nullptr; }
     if (s_deviceContext) { s_deviceContext->Release(); s_deviceContext = nullptr; }
     if (s_device) { s_device->Release(); s_device = nullptr; }
@@ -150,6 +150,13 @@ void Platform::handleEvents() {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+
+    if (s_resizeDirty) {
+        CleanupRenderTarget();
+        s_swapChain->ResizeBuffers(0, s_width, s_height, DXGI_FORMAT_UNKNOWN, 0);
+        s_resizeDirty = false;
+        CreateRenderTarget();
+    }
 }
 
 // Forward declare message handler from imgui_impl_win32.cpp
@@ -165,8 +172,10 @@ static LRESULT WindowEventHandler(HWND window, UINT message, WPARAM wParam, LPAR
             if (wParam == SIZE_MINIMIZED) {
                 return 0;
             }
+
             s_width = static_cast<UINT>(LOWORD(lParam));
             s_height = static_cast<UINT>(HIWORD(lParam));
+            s_resizeDirty = true;
 
             return 0;
         }
@@ -179,6 +188,19 @@ static LRESULT WindowEventHandler(HWND window, UINT message, WPARAM wParam, LPAR
             return DefWindowProc(window, message, wParam, lParam);
         }
     }
+}
+
+static void CleanupRenderTarget() {
+    if (s_renderTarget) {
+        s_renderTarget->Release(); s_renderTarget = nullptr;
+    }
+}
+
+static void CreateRenderTarget() {
+    ID3D11Texture2D* pBackBuffer;
+    s_swapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
+    s_device->CreateRenderTargetView(pBackBuffer, nullptr, &s_renderTarget);
+    pBackBuffer->Release();
 }
 
 #endif // _WIN32
