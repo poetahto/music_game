@@ -4,9 +4,11 @@ project(MUSIC_GAME)
 set(MG_DIR ${MUSIC_GAME_SOURCE_DIR})
 set(MG_SOURCES
         ${MG_DIR}/src/main.cpp
-        ${MG_DIR}/src/platform/platform_windows.cpp
+        ${MG_DIR}/src/platform_windows.cpp
+        ${MG_DIR}/src/mic_reader.cpp
         ${MG_DIR}/include/types.hpp
         ${MG_DIR}/include/platform.hpp
+        ${MG_DIR}/include/mic_reader.hpp
 )
 set(MG_LIBS imgui)
 
