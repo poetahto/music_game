@@ -9,6 +9,11 @@ namespace Platform {
     void handleEvents();
     bool wantsToQuit();
     void sleep(u32 duration);
+
+    namespace Renderer {
+        void startFrame();
+        void endFrame();
+    }
 }
 
 #endif
