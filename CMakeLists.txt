@@ -14,8 +14,8 @@ if(WIN32)
     list(APPEND MG_LIBS d3d11.lib)
 endif()
 
-include(libs/imgui.cmake) # todo: i think this causes lots or weirdness...
+add_subdirectory(libs/imgui)
 
 add_executable(MusicGame ${MG_SOURCES})
-target_include_directories(MusicGame PRIVATE ${MG_DIR}/include ${MG_DIR}/libs) # todo: fix scuff
+target_include_directories(MusicGame PRIVATE ${MG_DIR}/include)
 target_link_libraries(MusicGame ${MG_LIBS})

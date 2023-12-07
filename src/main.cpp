@@ -1,5 +1,5 @@
 #include "platform.hpp"
-#include <imgui/imgui.h>
+#include <imgui.h>
 
 int main() {
     Platform::init();
