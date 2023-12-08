@@ -14,6 +14,20 @@ namespace Platform {
         void startFrame();
         void endFrame();
     }
+
+    namespace Audio {
+        struct DeviceInfo;
+
+        void refreshDeviceList();
+        u32 getDeviceCount();
+        DeviceInfo* getDeviceInfo(u32 index);
+
+        struct DeviceInfo {
+            const char* name;
+            const char* state;
+            const char* dataFlow;
+        };
+    }
 }
 
 #endif

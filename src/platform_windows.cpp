@@ -4,11 +4,15 @@
 
 #define WIN32_MEAN_AND_LEAN
 #include <windows.h>
+#include <mmdeviceapi.h>
 #include <d3d11.h>
+#include <functiondiscoverykeys.h>
 #include <stdio.h>
 #include <imgui.h>
 #include <backends/imgui_impl_win32.h>
 #include <backends/imgui_impl_dx11.h>
+
+using namespace Platform;
 
 static int s_width {800};
 static int s_height {600};
@@ -24,9 +28,16 @@ static ID3D11DeviceContext* s_deviceContext {};
 static IDXGISwapChain* s_swapChain {};
 static ID3D11RenderTargetView* s_renderTarget {};
 
+static Audio::DeviceInfo* s_devices {};
+static u32 s_deviceCount {};
+
 static LRESULT WindowEventHandler(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
 static void CreateRenderTarget();
 static void CleanupRenderTarget();
+static char* wcharToChar(wchar_t* source);
+
+// https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdeviceenumerator-enumaudioendpoints
+// todo: check this out for audio work
 
 void Platform::init() {
     s_instance = GetModuleHandle(nullptr);
@@ -101,6 +112,51 @@ void Platform::init() {
         ImGui_ImplWin32_Init(s_window);
         ImGui_ImplDX11_Init(s_device, s_deviceContext);
     }
+
+    Audio::refreshDeviceList();
+}
+
+void Platform::free() {
+    // shut down imgui
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+
+    // shut down dx11
+    CleanupRenderTarget();
+    if (s_swapChain) { s_swapChain->Release(); s_swapChain = nullptr; }
+    if (s_deviceContext) { s_deviceContext->Release(); s_deviceContext = nullptr; }
+    if (s_device) { s_device->Release(); s_device = nullptr; }
+
+    // shut down win32
+    DestroyWindow(s_window);
+    s_window = nullptr;
+    UnregisterClass(s_windowClass.lpszClassName, s_windowClass.hInstance);
+    ZeroMemory(&s_windowClass, sizeof(s_windowClass));
+}
+
+void Platform::handleEvents() {
+    MSG msg {};
+    while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    if (s_resizeDirty) {
+        // update dx11 resolution
+        CleanupRenderTarget();
+        s_swapChain->ResizeBuffers(0, s_width, s_height, DXGI_FORMAT_UNKNOWN, 0);
+        s_resizeDirty = false;
+        CreateRenderTarget();
+    }
+}
+
+bool Platform::wantsToQuit() {
+    return s_wantsToQuit;
+}
+
+void Platform::sleep(u32 duration) {
+    Sleep(duration);
 }
 
 void Platform::Renderer::startFrame() {
@@ -120,43 +176,101 @@ void Platform::Renderer::endFrame() {
     s_swapChain->Present(1, 0);
 }
 
-void Platform::free() {
-    ImGui_ImplDX11_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
-
-    CleanupRenderTarget();
-    if (s_swapChain) { s_swapChain->Release(); s_swapChain = nullptr; }
-    if (s_deviceContext) { s_deviceContext->Release(); s_deviceContext = nullptr; }
-    if (s_device) { s_device->Release(); s_device = nullptr; }
-
-    DestroyWindow(s_window);
-    s_window = nullptr;
-    UnregisterClass(s_windowClass.lpszClassName, s_windowClass.hInstance);
-    ZeroMemory(&s_windowClass, sizeof(s_windowClass));
-}
-
-void Platform::sleep(u32 duration) {
-    Sleep(duration);
-}
-
-bool Platform::wantsToQuit() {
-    return s_wantsToQuit;
-}
-
-void Platform::handleEvents() {
-    MSG msg {};
-    while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+void Platform::Audio::refreshDeviceList() {
+    // De-allocate all preexisting device data.
+    if (s_devices != nullptr) {
+        for (int i = 0; i < s_deviceCount; ++i) {
+            delete s_devices[i].name;
+        }
+        delete[] s_devices;
     }
 
-    if (s_resizeDirty) {
-        CleanupRenderTarget();
-        s_swapChain->ResizeBuffers(0, s_width, s_height, DXGI_FORMAT_UNKNOWN, 0);
-        s_resizeDirty = false;
-        CreateRenderTarget();
+    // Request device info from win32 COM objects
+    IMMDeviceEnumerator* deviceEnumerator {};
+    IMMDeviceCollection* deviceCollection {};
+
+    CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&deviceEnumerator));
+    deviceEnumerator->EnumAudioEndpoints(EDataFlow::eAll, DEVICE_STATEMASK_ALL, &deviceCollection);
+
+    // Allocate new device info
+    deviceCollection->GetCount(&s_deviceCount);
+    s_devices = new Audio::DeviceInfo[s_deviceCount];
+
+    for (int i = 0; i < s_deviceCount; ++i) {
+        Audio::DeviceInfo* info = &s_devices[i];
+
+        IMMDevice* device {};
+        deviceCollection->Item(i, &device);
+
+        IPropertyStore* properties {};
+        device->OpenPropertyStore(STGM_READ, &properties);
+
+        DWORD state;
+        device->GetState(&state);
+        switch (state) {
+            case DEVICE_STATE_ACTIVE: {
+                info->state = "Active";
+                break;
+            }
+            case DEVICE_STATE_DISABLED: {
+                info->state = "Disabled";
+                break;
+            }
+            case DEVICE_STATE_NOTPRESENT: {
+                info->state = "Not Present";
+                break;
+            }
+            case DEVICE_STATE_UNPLUGGED: {
+                info->state = "Unplugged";
+                break;
+            }
+            default: {
+                info->state = "???";
+                break;
+            }
+        }
+
+        PROPVARIANT name;
+        PropVariantInit(&name);
+        properties->GetValue(PKEY_Device_FriendlyName, &name);
+        info->name = wcharToChar(name.pwszVal);
+        PropVariantClear(&name);
+
+        IMMEndpoint* endpoint;
+        EDataFlow dataFlow;
+        device->QueryInterface(IID_PPV_ARGS(&endpoint));
+        endpoint->GetDataFlow(&dataFlow);
+        switch (dataFlow) {
+            case EDataFlow::eCapture: {
+                info->dataFlow = "Capture";
+                break;
+            }
+            case EDataFlow::eRender: {
+                info->dataFlow = "Render";
+                break;
+            }
+            default: {
+                info->dataFlow = "???";
+                break;
+            }
+        }
+        endpoint->Release();
+
+        properties->Release();
+        device->Release();
     }
+
+    // cleanup
+    deviceEnumerator->Release();
+    deviceCollection->Release();
+}
+
+u32 Platform::Audio::getDeviceCount() {
+    return s_deviceCount;
+}
+
+Audio::DeviceInfo* Platform::Audio::getDeviceInfo(u32 index) {
+    return &s_devices[index];
 }
 
 // Forward declare message handler from imgui_impl_win32.cpp
@@ -201,6 +315,15 @@ static void CreateRenderTarget() {
     s_swapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
     s_device->CreateRenderTargetView(pBackBuffer, nullptr, &s_renderTarget);
     pBackBuffer->Release();
+}
+
+static char* wcharToChar(wchar_t* source) {
+    size_t sourceSize = wcslen(source) + 1;
+    size_t newSize = sourceSize * 2;
+    size_t convertedChars {};
+    char* result = new char[newSize];
+    wcstombs_s(&convertedChars, result, newSize, source, _TRUNCATE);
+    return result;
 }
 
 #endif // _WIN32
