@@ -19,12 +19,22 @@ namespace Platform {
 
         void refreshDeviceList();
         u32 getDeviceCount();
-        DeviceInfo* getDeviceInfo(u32 index);
+        const DeviceInfo* getDeviceInfo(u32 index);
 
         struct DeviceInfo {
+            enum DataFlow {
+                Capture, Render
+            } dataFlow;
+
+            enum State {
+                Active, Disabled, NotPresent, Unplugged
+            } state;
+
             const char* name;
-            const char* state;
-            const char* dataFlow;
+            u32 index;
+
+            static const char* getName(DataFlow dataFlow);
+            static const char* getName(State state);
         };
     }
 }

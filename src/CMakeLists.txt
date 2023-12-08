@@ -1,6 +1,7 @@
 set(SOURCES
         main.cpp
         mic_reader.cpp
+        platform.cpp
         ${INCLUDE_DIR}/types.hpp
         ${INCLUDE_DIR}/platform.hpp
         ${INCLUDE_DIR}/mic_reader.hpp

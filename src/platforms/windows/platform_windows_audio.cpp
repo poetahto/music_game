@@ -29,6 +29,7 @@ void Platform::Audio::refreshDeviceList() {
 
     for (int i = 0; i < s_deviceCount; ++i) {
         Audio::DeviceInfo* info = &s_devices[i];
+        info->index = i;
 
         IMMDevice* device {};
         deviceCollection->Item(i, &device);
@@ -40,23 +41,22 @@ void Platform::Audio::refreshDeviceList() {
         device->GetState(&state);
         switch (state) {
             case DEVICE_STATE_ACTIVE: {
-                info->state = "Active";
+                info->state = DeviceInfo::Active;
                 break;
             }
             case DEVICE_STATE_DISABLED: {
-                info->state = "Disabled";
+                info->state = DeviceInfo::Disabled;
                 break;
             }
             case DEVICE_STATE_NOTPRESENT: {
-                info->state = "Not Present";
+                info->state = DeviceInfo::NotPresent;
                 break;
             }
             case DEVICE_STATE_UNPLUGGED: {
-                info->state = "Unplugged";
+                info->state = DeviceInfo::Unplugged;
                 break;
             }
             default: {
-                info->state = "???";
                 break;
             }
         }
@@ -73,15 +73,14 @@ void Platform::Audio::refreshDeviceList() {
         endpoint->GetDataFlow(&dataFlow);
         switch (dataFlow) {
             case EDataFlow::eCapture: {
-                info->dataFlow = "Capture";
+                info->dataFlow = DeviceInfo::Capture;
                 break;
             }
             case EDataFlow::eRender: {
-                info->dataFlow = "Render";
+                info->dataFlow = DeviceInfo::Render;
                 break;
             }
             default: {
-                info->dataFlow = "???";
                 break;
             }
         }
@@ -100,7 +99,7 @@ u32 Platform::Audio::getDeviceCount() {
     return s_deviceCount;
 }
 
-Platform::Audio::DeviceInfo* Platform::Audio::getDeviceInfo(u32 index) {
+const Platform::Audio::DeviceInfo* Platform::Audio::getDeviceInfo(u32 index) {
     return &s_devices[index];
 }
 

@@ -4,4 +4,6 @@
 typedef unsigned int u32;
 typedef int s32;
 
+#define ARR_SIZE(array) (sizeof(array) / sizeof(*array))
+
 #endif
