@@ -1,13 +1,12 @@
 #ifdef _WIN32
 
-#include "platform.hpp"
 #include "platform_windows.hpp"
 
+#include <stdio.h>
 #include <d3d11.h>
 #include <imgui.h>
 #include <backends/imgui_impl_win32.h>
 #include <backends/imgui_impl_dx11.h>
-#include <stdio.h>
 
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);

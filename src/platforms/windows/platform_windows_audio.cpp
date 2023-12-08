@@ -1,8 +1,6 @@
 #ifdef _WIN32
 
-#include "platform.hpp"
 #include "platform_windows.hpp"
-#include "platform_windows_audio.hpp"
 
 #include <mmdeviceapi.h>
 #include <functiondiscoverykeys.h>

@@ -1,10 +1,6 @@
 #ifdef _WIN32
 
-#include "platform.hpp"
 #include "platform_windows.hpp"
-#include "platform_windows_renderer.hpp"
-#include "platform_windows_audio.hpp"
-#include <stdio.h>
 
 static LRESULT WindowEventHandler(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
 
