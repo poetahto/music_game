@@ -8,7 +8,6 @@ namespace Platform {
     void free();
     void handleEvents();
     bool wantsToQuit();
-    void sleep(u32 duration);
 
     namespace Renderer {
         void startFrame();
