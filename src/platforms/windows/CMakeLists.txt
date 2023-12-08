@@ -5,9 +5,9 @@ set(SOURCES
         ${INCLUDE_DIR}/platforms/platform_windows.hpp
 )
 set(LIBS
-        d3d11.lib
+        d3d11
         imgui
 )
-add_library(WindowsPlatform ${SOURCES})
-target_include_directories(WindowsPlatform PRIVATE ${INCLUDE_DIR})
-target_link_libraries(WindowsPlatform ${LIBS})
+add_library(platform_windows ${SOURCES})
+target_include_directories(platform_windows PRIVATE ${INCLUDE_DIR})
+target_link_libraries(platform_windows ${LIBS})
