@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
 project(MUSIC_GAME)
 
+set(INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
 set(SOURCES
         src/main.cpp
         src/mic_reader.cpp
-        include/types.hpp
-        include/platform.hpp
-        include/mic_reader.hpp
+        ${INCLUDE_DIR}/types.hpp
+        ${INCLUDE_DIR}/platform.hpp
+        ${INCLUDE_DIR}/mic_reader.hpp
 )
 
 add_subdirectory(libs/imgui)
@@ -18,5 +19,5 @@ if(WIN32)
 endif()
 
 add_executable(MusicGame ${SOURCES})
-target_include_directories(MusicGame PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(MusicGame PRIVATE ${INCLUDE_DIR})
 target_link_libraries(MusicGame ${LIBS})

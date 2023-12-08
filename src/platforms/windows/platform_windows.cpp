@@ -1,6 +1,6 @@
 #ifdef _WIN32
 
-#include "platform_windows.hpp"
+#include "platforms/platform_windows.hpp"
 
 static LRESULT WindowEventHandler(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
 

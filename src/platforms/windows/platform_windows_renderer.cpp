@@ -1,6 +1,6 @@
 #ifdef _WIN32
 
-#include "platform_windows.hpp"
+#include "platforms/platform_windows.hpp"
 
 #include <stdio.h>
 #include <d3d11.h>
