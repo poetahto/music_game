@@ -16,25 +16,26 @@ namespace Platform {
 
     namespace Audio {
         struct DeviceInfo;
+        struct InputDeviceHandle {};
+        struct OutputDeviceHandle {};
+        enum DeviceState {Active, Disabled, NotPresent, Unplugged};
 
-        void refreshDeviceList();
-        u32 getDeviceCount();
-        const DeviceInfo* getDeviceInfo(u32 index);
+        const char* getStateName(DeviceState state);
+        void refreshDeviceLists();
+
+        u32 getInputDeviceCount();
+        u32 getOutputDeviceCount();
+        const DeviceInfo* getInputDeviceInfo(u32 index);
+        const DeviceInfo* getOutputDeviceInfo(u32 index);
+        InputDeviceHandle createInputDevice(u32 index);
+        OutputDeviceHandle createOutputDevice(u32 index);
+        void freeInputDevice(InputDeviceHandle device);
+        void freeOutputDevice(OutputDeviceHandle device);
 
         struct DeviceInfo {
-            enum DataFlow {
-                Capture, Render
-            } dataFlow;
-
-            enum State {
-                Active, Disabled, NotPresent, Unplugged
-            } state;
-
-            const char* name;
+            const char* deviceName;
+            DeviceState state;
             u32 index;
-
-            static const char* getName(DataFlow dataFlow);
-            static const char* getName(State state);
         };
     }
 }

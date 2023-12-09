@@ -15,6 +15,7 @@ static bool s_resizeDirty {};
 
 void Platform::init() {
     g_instance = GetModuleHandle(nullptr);
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
     s_windowClass.lpszClassName = "MusicGame";
     s_windowClass.hInstance = g_instance;
@@ -46,8 +47,11 @@ void Platform::free() {
 
     DestroyWindow(g_window);
     g_window = nullptr;
+
     UnregisterClass(s_windowClass.lpszClassName, s_windowClass.hInstance);
     ZeroMemory(&s_windowClass, sizeof(s_windowClass));
+
+    CoUninitialize();
 }
 
 void Platform::handleEvents() {
