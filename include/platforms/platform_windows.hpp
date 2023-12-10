@@ -11,6 +11,7 @@ extern HINSTANCE g_instance;
 extern HWND g_window;
 
 char* wcharToChar(wchar_t* source);
+void printLastError();
 
 void audioInit();
 void audioFree();

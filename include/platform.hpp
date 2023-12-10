@@ -16,21 +16,17 @@ namespace Platform {
 
     namespace Audio {
         struct DeviceInfo;
-        struct InputDeviceHandle {};
-        struct OutputDeviceHandle {};
+        typedef u32 InputDeviceHandle;
+
         enum DeviceState {Active, Disabled, NotPresent, Unplugged};
 
         const char* getStateName(DeviceState state);
         void refreshDeviceLists();
 
         u32 getInputDeviceCount();
-        u32 getOutputDeviceCount();
         const DeviceInfo* getInputDeviceInfo(u32 index);
-        const DeviceInfo* getOutputDeviceInfo(u32 index);
         InputDeviceHandle createInputDevice(u32 index);
-        OutputDeviceHandle createOutputDevice(u32 index);
         void freeInputDevice(InputDeviceHandle device);
-        void freeOutputDevice(OutputDeviceHandle device);
 
         struct DeviceInfo {
             const char* deviceName;

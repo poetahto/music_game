@@ -23,12 +23,12 @@
 using namespace Platform;
 
 static void refreshCaptureDevices();
-static void selectDevice(u32 index);
 static void freeCaptureDevices();
 
 static const Audio::DeviceInfo** s_activeInputDevices {};
 static u32 s_activeInputDeviceCount {};
 static s32 s_selectedDevice {};
+static Audio::InputDeviceHandle s_currentDevice;
 
 void MicReader::init() {
     refreshCaptureDevices();
@@ -48,7 +48,8 @@ void MicReader::showDebugWindow() {
     s32 oldSelectedDevice {s_selectedDevice};
     if (ImGui::ListBox("Input Devices", &s_selectedDevice, [](void* data, int idx)-> const char* {return s_activeInputDevices[idx]->deviceName; }, nullptr, s_activeInputDeviceCount)) {
         if (oldSelectedDevice != s_selectedDevice) {
-            selectDevice(s_selectedDevice);
+            Audio::freeInputDevice(s_currentDevice);
+            s_currentDevice = Audio::createInputDevice(s_activeInputDevices[s_selectedDevice]->index);
         }
     }
 
@@ -78,19 +79,15 @@ static void refreshCaptureDevices() {
         }
     }
 
-    selectDevice(0);
-}
-
-static void selectDevice(u32 index) {
-    printf("Selected %s\n", s_activeInputDevices[index]->deviceName);
+    s_currentDevice = Audio::createInputDevice(s_activeInputDevices[0]->index);
 }
 
 static void freeCaptureDevices() {
     if (s_activeInputDevices != nullptr) {
         delete[] s_activeInputDevices;
         s_activeInputDevices = nullptr;
+        Audio::freeInputDevice(s_currentDevice);
     }
-
     s_selectedDevice = 0;
     s_activeInputDeviceCount = 0;
 }

@@ -4,46 +4,59 @@
 
 #include <mmdeviceapi.h>
 #include <functiondiscoverykeys.h>
+#include <audioclient.h>
 
-static void freeDeviceList(Platform::Audio::DeviceInfo*& array, u32& length);
+using namespace Platform::Audio;
 
-static u32 s_inputDeviceCount {};
-static u32 s_outputDeviceCount {};
-static Platform::Audio::DeviceInfo* s_inputDevices {};
-static Platform::Audio::DeviceInfo* s_outputDevices {};
+static void freeDeviceList(DeviceInfo*& array, u32& length);
+
+static IMMDeviceCollection* s_deviceCollection {};
+
+static u32 s_inputDeviceInfoCount {};
+static DeviceInfo* s_inputDeviceInfo {};
+static u32 s_outputDeviceInfoCount {};
+static DeviceInfo* s_outputDeviceInfo {};
+static const u32 MAX_INPUT_DEVICES {10};
+static IAudioClient* s_inputAudioClients[MAX_INPUT_DEVICES] {};
+static IAudioCaptureClient* s_audioCaptureClients[MAX_INPUT_DEVICES] {};
 
 void Platform::Audio::refreshDeviceLists() {
     // see this for info on what's happening here:
     // https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/
 
-    freeDeviceList(s_inputDevices, s_inputDeviceCount);
-    freeDeviceList(s_outputDevices, s_outputDeviceCount);
+    freeDeviceList(s_inputDeviceInfo, s_inputDeviceInfoCount);
+    freeDeviceList(s_outputDeviceInfo, s_outputDeviceInfoCount);
+
+    if (s_deviceCollection != nullptr) {
+        s_deviceCollection->Release();
+    }
 
     // Request device info from win32 COM objects
-    IMMDeviceEnumerator* deviceEnumerator {};
-    IMMDeviceCollection* deviceCollection {};
-
-    CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&deviceEnumerator));
-    deviceEnumerator->EnumAudioEndpoints(EDataFlow::eAll, DEVICE_STATEMASK_ALL, &deviceCollection);
+    {
+        IMMDeviceEnumerator* deviceEnumerator {};
+        CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&deviceEnumerator));
+        deviceEnumerator->EnumAudioEndpoints(EDataFlow::eAll, DEVICE_STATEMASK_ALL, &s_deviceCollection);
+        deviceEnumerator->Release();
+    }
 
     // Allocate new device info
     u32 deviceCount;
-    deviceCollection->GetCount(&deviceCount);
+    s_deviceCollection->GetCount(&deviceCount);
 
     for (int i = 0; i < deviceCount; ++i) {
         IMMDevice* device {};
-        deviceCollection->Item(i, &device);
+        s_deviceCollection->Item(i, &device);
         IMMEndpoint* endpoint;
         device->QueryInterface(IID_PPV_ARGS(&endpoint));
         EDataFlow dataFlow;
         endpoint->GetDataFlow(&dataFlow);
         switch (dataFlow) {
             case EDataFlow::eCapture: {
-                s_inputDeviceCount++;
+                s_inputDeviceInfoCount++;
                 break;
             }
             case EDataFlow::eRender: {
-                s_outputDeviceCount++;
+                s_outputDeviceInfoCount++;
                 break;
             }
             default: { /* Do nothing. */ }
@@ -52,15 +65,15 @@ void Platform::Audio::refreshDeviceLists() {
         device->Release();
     }
 
-    s_inputDevices = new Audio::DeviceInfo[s_inputDeviceCount];
-    s_outputDevices = new Audio::DeviceInfo[s_outputDeviceCount];
+    s_inputDeviceInfo = new Audio::DeviceInfo[s_inputDeviceInfoCount];
+    s_outputDeviceInfo = new Audio::DeviceInfo[s_outputDeviceInfoCount];
     u32 inputIndex {};
     u32 outputIndex {};
 
     for (int i = 0; i < deviceCount; ++i) {
 
         IMMDevice* device {};
-        deviceCollection->Item(i, &device);
+        s_deviceCollection->Item(i, &device);
 
         IPropertyStore* properties {};
         device->OpenPropertyStore(STGM_READ, &properties);
@@ -75,14 +88,13 @@ void Platform::Audio::refreshDeviceLists() {
             endpoint->GetDataFlow(&dataFlow);
             switch (dataFlow) {
                 case EDataFlow::eCapture: {
-                    info = &s_inputDevices[inputIndex];
+                    info = &s_inputDeviceInfo[inputIndex];
                     inputIndex++;
                     break;
                 }
                 case EDataFlow::eRender: {
-                    info = &s_outputDevices[outputIndex];
+                    info = &s_outputDeviceInfo[outputIndex];
                     outputIndex++;
-                    break;
                 }
                 default: { /* Do nothing. */ }
             }
@@ -130,38 +142,49 @@ void Platform::Audio::refreshDeviceLists() {
         properties->Release();
         device->Release();
     }
-
-    // cleanup
-    deviceEnumerator->Release();
-    deviceCollection->Release();
 }
 
 u32 Platform::Audio::getInputDeviceCount() {
-    return s_inputDeviceCount;
+    return s_inputDeviceInfoCount;
 }
 
-u32 Platform::Audio::getOutputDeviceCount() {
-    return s_outputDeviceCount;
+const DeviceInfo* Platform::Audio::getInputDeviceInfo(u32 index) {
+    return &s_inputDeviceInfo[index];
 }
 
-const Platform::Audio::DeviceInfo* Platform::Audio::getInputDeviceInfo(u32 index) {
-    return &s_inputDevices[index];
+InputDeviceHandle Platform::Audio::createInputDevice(u32 index) {
+    IMMDevice* device {};
+    s_deviceCollection->Item(index, &device);
+
+    u32 resultIndex {};
+    for (int i = 0; i < MAX_INPUT_DEVICES; ++i) {
+        if (s_inputAudioClients[i] != nullptr) {
+            resultIndex = i;
+            break;
+        }
+    }
+
+    IAudioClient* client {};
+    device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(&client));
+    WAVEFORMATEX* waveFormat;
+    client->GetMixFormat(&waveFormat);
+    client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, 10000000, 0, waveFormat, nullptr);
+    CoTaskMemFree(waveFormat);
+
+    IAudioCaptureClient* captureClient {};
+    client->GetService(__uuidof(IAudioCaptureClient), reinterpret_cast<void**>(&captureClient));
+    s_inputAudioClients[resultIndex] = client;
+    s_audioCaptureClients[resultIndex] = captureClient;
+
+    device->Release();
+    return resultIndex;
 }
 
-const Platform::Audio::DeviceInfo* Platform::Audio::getOutputDeviceInfo(u32 index) {
-    return &s_outputDevices[index];
-}
-
-Platform::Audio::InputDeviceHandle Platform::Audio::createInputDevice(u32 index) {
-}
-
-Platform::Audio::OutputDeviceHandle Platform::Audio::createOutputDevice(u32 index) {
-}
-
-void Platform::Audio::freeInputDevice(Platform::Audio::InputDeviceHandle device) {
-}
-
-void Platform::Audio::freeOutputDevice(Platform::Audio::OutputDeviceHandle device) {
+void Platform::Audio::freeInputDevice(InputDeviceHandle device) {
+    s_inputAudioClients[device]->Release();
+    s_audioCaptureClients[device]->Release();
+    s_inputAudioClients[device] = nullptr;
+    s_audioCaptureClients[device] = nullptr;
 }
 
 void audioInit() {
@@ -169,11 +192,16 @@ void audioInit() {
 }
 
 void audioFree() {
-    freeDeviceList(s_inputDevices, s_inputDeviceCount);
-    freeDeviceList(s_outputDevices, s_outputDeviceCount);
+    freeDeviceList(s_inputDeviceInfo, s_inputDeviceInfoCount);
+    freeDeviceList(s_outputDeviceInfo, s_outputDeviceInfoCount);
+
+    if (s_deviceCollection != nullptr) {
+        s_deviceCollection->Release();
+        s_deviceCollection = nullptr;
+    }
 }
 
-static void freeDeviceList(Platform::Audio::DeviceInfo*& array, u32& length) {
+static void freeDeviceList(DeviceInfo*& array, u32& length) {
     if (array == nullptr) {
         return;
     }
