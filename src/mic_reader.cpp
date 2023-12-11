@@ -24,6 +24,7 @@ using namespace Platform;
 
 static void refreshCaptureDevices();
 static void freeCaptureDevices();
+static void renderFormatInfo(Audio::FormatInfo* formatInfo);
 
 static const Audio::DeviceInfo** s_activeInputDevices {};
 static u32 s_activeInputDeviceCount {};
@@ -48,12 +49,29 @@ void MicReader::showDebugWindow() {
     s32 oldSelectedDevice {s_selectedDevice};
     if (ImGui::ListBox("Input Devices", &s_selectedDevice, [](void* data, int idx)-> const char* {return s_activeInputDevices[idx]->deviceName; }, nullptr, s_activeInputDeviceCount)) {
         if (oldSelectedDevice != s_selectedDevice) {
-            Audio::freeInputDevice(s_currentDevice);
-            s_currentDevice = Audio::createInputDevice(s_activeInputDevices[s_selectedDevice]->index);
+            Audio::freeInputDeviceInstance(s_currentDevice);
+            s_currentDevice = Audio::createInputDeviceInstance(s_activeInputDevices[s_selectedDevice]->index);
         }
     }
 
+    Audio::InputDeviceInstanceInfo* info = Audio::getInputDeviceInstanceInfo(s_currentDevice);
+    ImGui::Text("Buffer Size: %i", info->bufferSize);
+    ImGui::Text("Latency: %i", info->latency);
+    ImGui::Text("Padding: %i", info->padding);
+    ImGui::Text("Period: %i", info->period);
+    renderFormatInfo(&info->formatInfo);
+
     ImGui::End();
+}
+
+static void renderFormatInfo(Audio::FormatInfo* formatInfo) {
+    ImGui::Text("Bits per sample: %i", formatInfo->bitsPerSample);
+    ImGui::Text("Block align: %i", formatInfo->blockAlign);
+    ImGui::Text("Bytes per sec: %i", formatInfo->bytesPerSec);
+    ImGui::Text("Channels: %i", formatInfo->channels);
+    ImGui::Text("Extra size: %i", formatInfo->extraSize);
+    ImGui::Text("Samples per sec: %i", formatInfo->samplesPerSec);
+    ImGui::Text("Tag: %i", formatInfo->tag);
 }
 
 static void refreshCaptureDevices() {
@@ -79,14 +97,14 @@ static void refreshCaptureDevices() {
         }
     }
 
-    s_currentDevice = Audio::createInputDevice(s_activeInputDevices[0]->index);
+    s_currentDevice = Audio::createInputDeviceInstance(s_activeInputDevices[0]->index);
 }
 
 static void freeCaptureDevices() {
     if (s_activeInputDevices != nullptr) {
         delete[] s_activeInputDevices;
         s_activeInputDevices = nullptr;
-        Audio::freeInputDevice(s_currentDevice);
+        Audio::freeInputDeviceInstance(s_currentDevice);
     }
     s_selectedDevice = 0;
     s_activeInputDeviceCount = 0;
