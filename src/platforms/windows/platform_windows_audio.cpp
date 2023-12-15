@@ -187,19 +187,23 @@ InputDeviceHandle Platform::Audio::createInputDeviceInstance(u32 index) {
     device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(&instance->client));
     device->Release();
 
-    WAVEFORMATEX* waveFormat;
-    instance->client->GetMixFormat(&waveFormat);
-    instance->client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, 10000000, 0, waveFormat, nullptr);
+    WAVEFORMATEX* waveFormatEx;
+    instance->client->GetMixFormat(&waveFormatEx);
+    instance->client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, 10000000, 0, waveFormatEx, nullptr);
+    WAVEFORMATEXTENSIBLE* waveFormat = reinterpret_cast<WAVEFORMATEXTENSIBLE*>(waveFormatEx);
 
     // record info about the wave format
     {
-        info.formatInfo.tag = waveFormat->wFormatTag;
-        info.formatInfo.extraSize = waveFormat->cbSize;
-        info.formatInfo.bytesPerSec = waveFormat->nAvgBytesPerSec;
-        info.formatInfo.blockAlign = waveFormat->nBlockAlign;
-        info.formatInfo.channels = waveFormat->nChannels;
-        info.formatInfo.samplesPerSec = waveFormat->nSamplesPerSec;
-        info.formatInfo.bitsPerSample = waveFormat->wBitsPerSample;
+        info.format.tag = waveFormatEx->wFormatTag;
+        info.format.extraSize = waveFormatEx->cbSize;
+        info.format.bytesPerSec = waveFormatEx->nAvgBytesPerSec;
+        info.format.blockAlign = waveFormatEx->nBlockAlign;
+        info.format.channels = waveFormatEx->nChannels;
+        info.format.samplesPerSec = waveFormatEx->nSamplesPerSec;
+        info.format.bitsPerSample = waveFormatEx->wBitsPerSample;
+        info.format.samples = waveFormat->Samples.wSamplesPerBlock;
+        info.format.channelMask = waveFormat->dwChannelMask;
+        info.format.tag = waveFormat->SubFormat.Data1;
     }
 
     CoTaskMemFree(waveFormat);
@@ -220,6 +224,7 @@ InputDeviceHandle Platform::Audio::createInputDeviceInstance(u32 index) {
         info.latency = latency;
     }
 
+    instance->client->Start();
     return handle;
 }
 
@@ -229,10 +234,47 @@ InputDeviceInstanceInfo* Platform::Audio::getInputDeviceInstanceInfo(InputDevice
 
 void Platform::Audio::freeInputDeviceInstance(InputDeviceHandle device) {
     InputDeviceInstance& instance = s_inputDevices[device];
+    instance.client->Stop();
     instance.client->Release();
     instance.captureClient->Release();
     ZeroMemory(&instance, sizeof(instance));
     instance.isValid = false;
+}
+
+InputBuffer* Platform::Audio::captureBuffer(Platform::Audio::InputDeviceHandle handle) {
+    InputBuffer* buffer = new InputBuffer;
+    InputDeviceInstance& instance = s_inputDevices[handle];
+    BYTE* data;
+    DWORD flags;
+    UINT32 frameCount;
+    UINT64 devicePosition;
+    UINT64 pcPosition;
+    HRESULT result = instance.captureClient->GetBuffer(&data, &frameCount, &flags, &devicePosition, &pcPosition);
+    if (flags & AUDCLNT_BUFFERFLAGS_SILENT) {
+        printf("silent\n");
+        return buffer;
+    }
+    else if (flags & AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY) {
+        printf("discontinuity");
+        return buffer;
+    }
+    else if (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR) {
+        printf("timestamp error");
+        return buffer;
+    }
+    InputDeviceInstanceInfo* info = getInputDeviceInstanceInfo(handle);
+    u32 frameSize = info->format.channels * info->format.bitsPerSample;
+    buffer->length = frameCount;
+    buffer->data = new u8[buffer->length];
+    auto floatBuffer = reinterpret_cast<float*>(data);
+    CopyMemory(buffer->data, data, buffer->length);
+    instance.captureClient->ReleaseBuffer(frameCount);
+    return buffer;
+}
+
+void Platform::Audio::freeBuffer(Platform::Audio::InputBuffer *buffer) {
+    delete[] buffer->data;
+    delete buffer;
 }
 
 void audioInit() {

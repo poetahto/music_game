@@ -30,6 +30,7 @@ static const Audio::DeviceInfo** s_activeInputDevices {};
 static u32 s_activeInputDeviceCount {};
 static s32 s_selectedDevice {};
 static Audio::InputDeviceHandle s_currentDevice;
+static Audio::InputBuffer* s_buffer {};
 
 void MicReader::init() {
     refreshCaptureDevices();
@@ -59,7 +60,24 @@ void MicReader::showDebugWindow() {
     ImGui::Text("Latency: %i", info->latency);
     ImGui::Text("Padding: %i", info->padding);
     ImGui::Text("Period: %i", info->period);
-    renderFormatInfo(&info->formatInfo);
+    renderFormatInfo(&info->format);
+
+    if (ImGui::Button("Capture")) {
+        if (s_buffer != nullptr) {
+            Audio::freeBuffer(s_buffer);
+        }
+        s_buffer = Audio::captureBuffer(s_currentDevice);
+    }
+
+    if (s_buffer != nullptr) {
+        ImGui::Text("Buffer Length: %u", s_buffer->length);
+
+        ImGui::PlotLines("Buffer Data", [](void* data, int idx) -> float {
+                auto trueData = reinterpret_cast<u8*>(data);
+                auto cur = &trueData[idx * 8];
+                return *reinterpret_cast<f32*>(cur + 4);
+            }, s_buffer->data, s_buffer->length, 0, nullptr, FLT_MAX, FLT_MAX, ImVec2(300, 100));
+    }
 
     ImGui::End();
 }
@@ -72,6 +90,8 @@ static void renderFormatInfo(Audio::FormatInfo* formatInfo) {
     ImGui::Text("Extra size: %i", formatInfo->extraSize);
     ImGui::Text("Samples per sec: %i", formatInfo->samplesPerSec);
     ImGui::Text("Tag: %i", formatInfo->tag);
+    ImGui::Text("Samples: %i", formatInfo->samples);
+    ImGui::Text("Channel Mask: %i", formatInfo->channelMask);
 }
 
 static void refreshCaptureDevices() {
@@ -105,6 +125,9 @@ static void freeCaptureDevices() {
         delete[] s_activeInputDevices;
         s_activeInputDevices = nullptr;
         Audio::freeInputDeviceInstance(s_currentDevice);
+    }
+    if (s_buffer != nullptr) {
+        Audio::freeBuffer(s_buffer);
     }
     s_selectedDevice = 0;
     s_activeInputDeviceCount = 0;
